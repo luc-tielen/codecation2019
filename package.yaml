@@ -1,0 +1,48 @@
+name:                codecation
+version:             0.0.1
+homepage:            https://github.com/luc-tielen/codecation#README.md
+license:             MIT
+author:              Luc Tielen
+maintainer:          luc.tielen@gmail.com
+copyright:           2019 Luc Tielen
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.11.0 && < 5
+  - containers >= 0.6.0.1 && < 1
+  - protolude >= 0.2.2 && < 1
+  - mtl >= 2.2.2 && < 3
+  - text >= 1.2.3.1 && < 2
+  - optparse-applicative >= 0.14.3.0 && < 1
+
+default-extensions:
+  - NoImplicitPrelude
+
+ghc-options:
+  - -Wall
+  - -Weverything
+  - -Wno-safe
+  - -Wno-unsafe
+  - -Wno-missed-specializations
+  - -Wno-all-missed-specializations
+  - -Wno-missing-import-lists
+  - -Wno-type-defaults
+  - -Wno-missing-local-signatures
+  - -Wno-monomorphism-restriction
+  - -optP-Wno-nonportable-include-path
+  - -fhide-source-paths
+  - -fmax-valid-hole-fits=0
+  - -O0
+
+library:
+  source-dirs:        lib
+
+executables:
+  codecation:
+    source-dirs:      src
+    main:             Main.hs
+    dependencies:
+      - codecation
+
