@@ -16,6 +16,8 @@ dependencies:
   - mtl >= 2.2.2 && < 3
   - text >= 1.2.3.1 && < 2
   - optparse-applicative >= 0.14.3.0 && < 1
+  - llvm-hs-pure >= 8.0.0 && < 9
+  - llvm-hs-pretty >= 0.6.2.0 && < 1
 
 default-extensions:
   - NoImplicitPrelude
