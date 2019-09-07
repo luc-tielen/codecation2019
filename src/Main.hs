@@ -63,40 +63,49 @@ fib x =
 type FuncName = Name.Name
 type Variable = ParameterName
 
-data AST = Func FuncName [Variable] (Expr ())
+data AST = Func FuncName [Variable] Expr
 
 type Operand = Operand.Operand
 
-data Expr ty where
-  -- TODO remove return, no need for GADT
-  Return :: Expr Operand -> Expr ()
-  Var :: Variable -> Expr Operand
-  Value :: Int -> Expr Operand
-  If :: Expr Operand -> Expr Operand -> Expr Operand -> Expr Operand
-  Equals :: Expr Operand -> Expr Operand -> Expr Operand
+data Expr
+  = Var Variable
+  | Value Int
+  | If Expr Expr Expr
+  | Equals Expr Expr
+
+  --BinOp :: BinOp -> Expr Operand -> Expr Operand -> Expr Operand
+  --Call :: FuncName -> [Expr Operand] -> Expr Operand
 
 
 fibAST :: AST
 fibAST = Func "fib" ["input"] $
-  Return $ If (Var "input" `Equals` Value 0)
+  If (Var "input" `Equals` Value 0)
     (Value 1)
     (If (Var "input" `Equals` Value 1)
       (Value 1)
-      (Value 2))  -- TODO implement rest of body
+      (Value 2))
+    --  (Call "fib" []))  -- TODO implement rest of body
+
+data IRState
+  = IRState
+  { varMap :: Map Variable Operand
+  }
 
 buildIR :: AST -> ModuleBuilder Operand.Operand
-buildIR (Func name vars body) =
-  function name (prepareVars vars) AST.i32 $ \args -> mdo
+buildIR (Func name vars body) = mdo
+  func <- function name (prepareVars vars) AST.i32 $ \args -> mdo
     _ <- block `named` "entry"
-    flip evalStateT (buildArgEnv args) $ buildExprIR body
+    flip evalStateT (mkState name func args) $ do
+      result <- buildExprIR body
+      ret result
+  pure func
   where prepareVars = map (AST.i32, )
-        buildArgEnv args = Map.fromList $ zip vars args
+        mkState _ _ args =
+          IRState $ Map.fromList $ zip vars args
 
 
-buildExprIR :: Expr a -> StateT (Map Variable Operand) (IRBuilderT ModuleBuilder) a
+buildExprIR :: Expr -> StateT IRState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
-  Return ast ->
-    ret =<< buildExprIR ast
   Equals l r -> do
     resL <- buildExprIR l
     resR <- buildExprIR r
@@ -116,7 +125,7 @@ buildExprIR = \case
     endBlock <- block `named` "if.exit"
     phi [(trueResult, thenBlock), (falseResult, elseBlock)]
   Value v -> int32 (fromIntegral v)
-  Var v -> do
-    x <- gets $ Map.lookup v
-    pure $ unsafeFromJust x
+  Var v ->
+    gets $ unsafeFromJust . Map.lookup v . varMap
+  --Call name args ->    _
 
