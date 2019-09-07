@@ -67,13 +67,14 @@ data AST = Func FuncName [Variable] Expr
 
 type Operand = Operand.Operand
 
+data Op = Add | Subtract
+
 data Expr
   = Var Variable
   | Value Int
   | If Expr Expr Expr
   | Equals Expr Expr
-
-  --BinOp :: BinOp -> Expr Operand -> Expr Operand -> Expr Operand
+  | BinOp Op Expr Expr
   --Call :: FuncName -> [Expr Operand] -> Expr Operand
 
 
@@ -83,7 +84,7 @@ fibAST = Func "fib" ["input"] $
     (Value 1)
     (If (Var "input" `Equals` Value 1)
       (Value 1)
-      (Value 2))
+      (BinOp Subtract (Value 2) (Value 42)))
     --  (Call "fib" []))  -- TODO implement rest of body
 
 data IRState
@@ -127,5 +128,13 @@ buildExprIR = \case
   Value v -> int32 (fromIntegral v)
   Var v ->
     gets $ unsafeFromJust . Map.lookup v . varMap
+  BinOp op e1 e2 -> do
+    res1 <- buildExprIR e1
+    res2 <- buildExprIR e2
+    opToIr op res1 res2
   --Call name args ->    _
 
+opToIr :: MonadIRBuilder m => Op -> Operand -> Operand -> m Operand
+opToIr = \case
+  Add -> add
+  Subtract -> sub
