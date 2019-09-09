@@ -21,17 +21,6 @@ import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
 
-main :: IO ()
-main = T.putStrLn $ ppllvm $ buildModule "fibonacci" $ mdo
-  void $ function "add" [(AST.i32, "a"), (AST.i32, "b")] AST.i32 $ \[a, b] -> mdo
-    _ <- block `named` "entry"; do
-      c <- add a b
-      ret c
-
-  _ <- buildIR fibAST
-  buildIR facAST
-
-
 type Variable = ParameterName
 
 data AST = Func String [Variable] Expr
@@ -48,9 +37,27 @@ data Expr
   | BinOp Op Expr Expr
   | Call Variable [Expr]
 
+type IRState = Map Variable Operand
+
+
+-- Main function, prints out IR for 3 functions
+main :: IO ()
+main = T.putStrLn $ ppllvm $ buildModule "fibonacci" $ mdo
+  -- Hardcoded function: adds 2 integers and returns the result
+  void $ function "add" [(AST.i32, "a"), (AST.i32, "b")] AST.i32 $ \[a, b] -> mdo
+    void $ block `named` "entry"; do
+      c <- add a b
+      ret c
+
+  -- Generate IR for fac function
+  void $ buildIR facAST
+
+  -- Generates IR for fib function:
+  void $ buildIR fibAST
+
 
 {-
-2 examples in this file:
+2 example functions in this file that are converted to IR:
 
 fac :: Int -> Int
 fac 0 = 1
@@ -81,8 +88,8 @@ fibAST = Func "fib" ["input"] $
         (Call "fib" [BinOp Subtract (Var "input") (Value 2)])))
 
 
-type IRState = Map Variable Operand
-
+-- Generates the bitcode for the provided AST,
+-- returns an operand which can be used in other expressions/functions
 buildIR :: AST -> ModuleBuilder Operand.Operand
 buildIR (Func name vars body) = mdo
   let funcName = Name.mkName name
@@ -96,6 +103,8 @@ buildIR (Func name vars body) = mdo
         mkState name' func args =
           Map.fromList $ (name', func):zip vars args
 
+-- Generates IR for an expression, returns an operand,
+-- which can be used in other expressions/functions
 buildExprIR :: Expr -> StateT IRState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
   Equals l r -> do
@@ -130,8 +139,10 @@ buildExprIR = \case
     let args'' = (, []) <$> args'
     call func args''
 
+-- Finds the matching llvm instruction for an operator
 opToIr :: MonadIRBuilder m => Op -> (Operand -> Operand -> m Operand)
 opToIr = \case
   Add -> add
   Subtract -> sub
   Mul -> mul
+
