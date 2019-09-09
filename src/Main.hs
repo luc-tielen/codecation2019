@@ -27,15 +27,14 @@ type Variable = ParameterName
 type FuncName = String
 
 
--- We support addition, subtraction, multiplication
-data Op = Add | Subtract | Mul
+-- We support addition, subtraction, multiplication, equality
+data Op = Add | Subtract | Mul | Equals
 
 -- The main expression type
 data Expr
   = Var Variable           -- a variable reference
   | Value Int              -- a constant integer value
-  | If Expr Expr Expr      -- an if expression
-  | Equals Expr Expr       -- equality operator
+  | If Expr Expr Expr      -- an if expression (contains actual condition, body for then clause, body for else clause)
   | BinOp Op Expr Expr     -- a binary operator applied to 2 subexpressions
   | Call Variable [Expr]   -- a function call
 
@@ -77,7 +76,7 @@ fib n = fib (n - 1) + fib (n - 2)
 
 facAST :: Func
 facAST = Func "fac" ["input"] $
-  If (Var "input" `Equals` Value 0)
+  If (BinOp Equals (Var "input") (Value 0))
     (Value 1)
     (BinOp Mul
       (Var "input")
@@ -85,9 +84,9 @@ facAST = Func "fac" ["input"] $
 
 fibAST :: Func
 fibAST = Func "fib" ["input"] $
-  If (Var "input" `Equals` Value 0)
+  If (BinOp Equals (Var "input") (Value 0))
     (Value 1)
-    (If (Var "input" `Equals` Value 1)
+    (If (BinOp Equals (Var "input") (Value 1))
       (Value 1)
       (BinOp Add
         (Call "fib" [BinOp Subtract (Var "input") (Value 1)])
@@ -113,10 +112,6 @@ buildIR (Func name vars body) = mdo
 -- which can be used in other expressions/functions
 buildExprIR :: Expr -> StateT CodeGenState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
-  Equals l r -> do
-    resL <- buildExprIR l
-    resR <- buildExprIR r
-    icmp IP.EQ resL resR
   If c t f -> mdo
     condResult <- buildExprIR c
     condBr condResult thenBlock elseBlock
@@ -151,4 +146,5 @@ opToIr = \case
   Add -> add
   Subtract -> sub
   Mul -> mul
+  Equals -> icmp IP.EQ
 
