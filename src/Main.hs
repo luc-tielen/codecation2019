@@ -100,7 +100,7 @@ buildIR (Func name vars body) = mdo
   let funcName = Name.mkName name
   func <- function funcName (prepareVars vars) AST.i32 $ \args -> mdo
     _ <- block `named` "entry"
-    flip evalStateT (mkState (fromString name) func args) $ do
+    flip runReaderT (mkState (fromString name) func args) $ do
       result <- buildExprIR body
       ret result
   pure func
@@ -110,7 +110,7 @@ buildIR (Func name vars body) = mdo
 
 -- Generates IR for an expression, returns an operand,
 -- which can be used in other expressions/functions
-buildExprIR :: Expr -> StateT CodeGenState (IRBuilderT ModuleBuilder) Operand
+buildExprIR :: Expr -> ReaderT CodeGenState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
   If c t f -> mdo
     condResult <- buildExprIR c
@@ -129,13 +129,13 @@ buildExprIR = \case
     endBlock <- block `named` "if.exit"
     phi [(trueResult, trueCurrentBlock), (falseResult, falseCurrentBlock)]
   Value v -> int32 (fromIntegral v)
-  Var v -> gets $ unsafeFromJust . Map.lookup v
+  Var v -> asks $ unsafeFromJust . Map.lookup v
   BinOp op e1 e2 -> do
     res1 <- buildExprIR e1
     res2 <- buildExprIR e2
     opToIr op res1 res2
   Call name args -> do
-    func <- gets $ unsafeFromJust . Map.lookup name
+    func <- asks $ unsafeFromJust . Map.lookup name
     args' <- traverse buildExprIR args
     let args'' = (, []) <$> args'
     call func args''
