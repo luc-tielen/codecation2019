@@ -53,10 +53,8 @@ main = T.putStrLn $ ppllvm $ buildModule "fibonacci" $ mdo
     void $ block `named` "entry"; do
       c <- add a b
       ret c
-
-  -- Generate IR for fac function
+  -- Generate IR for fac function:
   void $ buildIR facAST
-
   -- Generates IR for fib function:
   void $ buildIR fibAST
 
@@ -112,6 +110,8 @@ buildIR (Func name vars body) = mdo
 -- which can be used in other expressions/functions
 buildExprIR :: Expr -> ReaderT CodeGenState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
+  Value v -> int32 (fromIntegral v)
+  Var v -> lookupVar v
   If c t f -> mdo
     condResult <- buildExprIR c
     condBr condResult thenBlock elseBlock
@@ -128,17 +128,20 @@ buildExprIR = \case
 
     endBlock <- block `named` "if.exit"
     phi [(trueResult, trueCurrentBlock), (falseResult, falseCurrentBlock)]
-  Value v -> int32 (fromIntegral v)
-  Var v -> asks $ unsafeFromJust . Map.lookup v
   BinOp op e1 e2 -> do
     res1 <- buildExprIR e1
     res2 <- buildExprIR e2
     opToIr op res1 res2
-  Call name args -> do
-    func <- asks $ unsafeFromJust . Map.lookup name
+  Call funcName args -> do
+    func <- lookupVar funcName
     args' <- traverse buildExprIR args
     let args'' = (, []) <$> args'
     call func args''
+
+-- Looks up the matching operand for a variable.
+-- This assumes all variables are known in the current context.
+lookupVar :: MonadReader CodeGenState m => Variable -> m Operand
+lookupVar v = asks $ unsafeFromJust . Map.lookup v
 
 -- Finds the matching LLVM instruction for an operator
 opToIr :: MonadIRBuilder m => Op -> (Operand -> Operand -> m Operand)
