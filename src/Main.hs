@@ -52,11 +52,8 @@ main = do
   let output = ppllvm $ buildModule "fibonacci" codegen
   T.putStrLn output
   doesDirectoryExist "./output" >>= \case
-    True -> do
-      let fileName = "./output/code.ll"
-      T.writeFile fileName output
-    False ->
-      pure ()
+    True -> T.writeFile "./output/code.ll" output
+    False -> pure ()
 
 codegen :: ModuleBuilder ()
 codegen = mdo
@@ -119,7 +116,7 @@ buildIR (Func name vars body) = mdo
           Map.fromList $ (funcName, funcOperand) : zip vars args
 
 -- Generates IR for an expression, returns an operand,
--- which can be used in other expressions/functions
+-- which can be used in other expressions/functions.
 buildExprIR :: Expr -> ReaderT CodeGenState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
   Value v -> int32 (fromIntegral v)
