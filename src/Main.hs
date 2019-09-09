@@ -1,5 +1,4 @@
-{-# LANGUAGE RecursiveDo, OverloadedStrings #-}
-{-# LANGUAGE TupleSections, LambdaCase #-}
+{-# LANGUAGE RecursiveDo, OverloadedStrings, TupleSections, LambdaCase, FlexibleContexts #-}
 {-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}
 
 module Main ( main ) where
@@ -13,31 +12,38 @@ import qualified Data.Map as Map
 import LLVM.Pretty
 import qualified LLVM.AST.Type as AST
 import qualified LLVM.AST.Name as Name
-import qualified LLVM.AST.Operand as Operand
-import qualified LLVM.AST.IntegerPredicate as P
+import qualified LLVM.AST.IntegerPredicate as IP
+import LLVM.AST.Operand ( Operand )
 import LLVM.IRBuilder.Module
 import LLVM.IRBuilder.Monad
 import LLVM.IRBuilder.Constant
 import LLVM.IRBuilder.Instruction
 
 
+-- Some type synonyms for readability
+
 type Variable = ParameterName
 
-data AST = Func String [Variable] Expr
+type FuncName = String
 
-type Operand = Operand.Operand
 
+-- We support addition, subtraction, multiplication
 data Op = Add | Subtract | Mul
 
+-- The main expression type
 data Expr
-  = Var Variable
-  | Value Int
-  | If Expr Expr Expr
-  | Equals Expr Expr
-  | BinOp Op Expr Expr
-  | Call Variable [Expr]
+  = Var Variable           -- a variable reference
+  | Value Int              -- a constant integer value
+  | If Expr Expr Expr      -- an if expression
+  | Equals Expr Expr       -- equality operator
+  | BinOp Op Expr Expr     -- a binary operator applied to 2 subexpressions
+  | Call Variable [Expr]   -- a function call
 
-type IRState = Map Variable Operand
+-- Our main "AST" consists of a single
+data Func = Func FuncName [Variable] Expr
+
+-- During codegen we need to keep track of a mapping from variable names to operands (%0, %1, ...) in IR
+type CodeGenState = Map Variable Operand
 
 
 -- Main function, prints out IR for 3 functions
@@ -69,7 +75,7 @@ fib 1 = 1
 fib n = fib (n - 1) + fib (n - 2)
 -}
 
-facAST :: AST
+facAST :: Func
 facAST = Func "fac" ["input"] $
   If (Var "input" `Equals` Value 0)
     (Value 1)
@@ -77,7 +83,7 @@ facAST = Func "fac" ["input"] $
       (Var "input")
       (Call "fac" [BinOp Subtract (Var "input") (Value 1)]))
 
-fibAST :: AST
+fibAST :: Func
 fibAST = Func "fib" ["input"] $
   If (Var "input" `Equals` Value 0)
     (Value 1)
@@ -88,9 +94,9 @@ fibAST = Func "fib" ["input"] $
         (Call "fib" [BinOp Subtract (Var "input") (Value 2)])))
 
 
--- Generates the bitcode for the provided AST,
+-- Generates the bitcode for the provided function,
 -- returns an operand which can be used in other expressions/functions
-buildIR :: AST -> ModuleBuilder Operand.Operand
+buildIR :: Func -> ModuleBuilder Operand
 buildIR (Func name vars body) = mdo
   let funcName = Name.mkName name
   func <- function funcName (prepareVars vars) AST.i32 $ \args -> mdo
@@ -100,17 +106,17 @@ buildIR (Func name vars body) = mdo
       ret result
   pure func
   where prepareVars = map (AST.i32, )
-        mkState name' func args =
-          Map.fromList $ (name', func):zip vars args
+        mkState funcName funcOperand args =
+          Map.fromList $ (funcName, funcOperand) : zip vars args
 
 -- Generates IR for an expression, returns an operand,
 -- which can be used in other expressions/functions
-buildExprIR :: Expr -> StateT IRState (IRBuilderT ModuleBuilder) Operand
+buildExprIR :: Expr -> StateT CodeGenState (IRBuilderT ModuleBuilder) Operand
 buildExprIR = \case
   Equals l r -> do
     resL <- buildExprIR l
     resR <- buildExprIR r
-    icmp P.EQ resL resR
+    icmp IP.EQ resL resR
   If c t f -> mdo
     condResult <- buildExprIR c
     condBr condResult thenBlock elseBlock
@@ -139,7 +145,7 @@ buildExprIR = \case
     let args'' = (, []) <$> args'
     call func args''
 
--- Finds the matching llvm instruction for an operator
+-- Finds the matching LLVM instruction for an operator
 opToIr :: MonadIRBuilder m => Op -> (Operand -> Operand -> m Operand)
 opToIr = \case
   Add -> add
