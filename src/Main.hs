@@ -7,6 +7,7 @@ import Protolude
 import Prelude ( String )
 import Data.String ( fromString )
 import Unsafe ( unsafeFromJust )
+import System.Directory
 import qualified Data.Text.Lazy.IO as T
 import qualified Data.Map as Map
 import LLVM.Pretty
@@ -47,7 +48,18 @@ type CodeGenState = Map Variable Operand
 
 -- Main function, prints out IR for 3 functions
 main :: IO ()
-main = T.putStrLn $ ppllvm $ buildModule "fibonacci" $ mdo
+main = do
+  let output = ppllvm $ buildModule "fibonacci" codegen
+  T.putStrLn output
+  doesDirectoryExist "./output" >>= \case
+    True -> do
+      let fileName = "./output/code.ll"
+      T.writeFile fileName output
+    False ->
+      pure ()
+
+codegen :: ModuleBuilder ()
+codegen = mdo
   -- Hardcoded function: adds 2 integers and returns the result
   void $ function "add" [(AST.i32, "a"), (AST.i32, "b")] AST.i32 $ \[a, b] -> mdo
     void $ block `named` "entry"; do
