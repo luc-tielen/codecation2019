@@ -39,10 +39,28 @@ It's also possible to generate the control flow graph for example:
 
 ### Factorial 
 
-![factorial before optimizations](./results/fac-before.png)
-![factorial after optimizations](./results/fac-after.png)
+Before optimization:
+
+<p align="center">
+  <img src="./results/fac-before.png"/>
+</p>
+
+After optimization:
+
+<p align="center">
+  <img src="./results/fac-after.png"/>
+</p>
 
 ### Fibonacci 
 
-![fibonacci before optimizations](./results/fib-before.png)
-![fibonacci after optimizations](./results/fib-after.png)
+Before optimization:
+
+<p align="center">
+  <img src="./results/fib-before.png"/>
+</p>
+
+After optimization:
+
+<p align="center">
+  <img src="./results/fib-after.png"/>
+</p>
